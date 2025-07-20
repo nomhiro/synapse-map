@@ -5,7 +5,7 @@ Session Manager - セッション管理とメイン実行ロジック
 import asyncio
 import time
 from datetime import datetime
-from typing import List, Dict, Any, Optional, AsyncGenerator
+from typing import List, Dict, Any, Optional, AsyncGenerator, Callable
 from autogen_agentchat.base import TaskResult
 
 from config.settings import Settings
@@ -39,6 +39,7 @@ class SessionManager:
         
         self.chat_contexts: List[Dict[str, Any]] = []
         self.session_start_time: Optional[float] = None
+        self.message_hooks: List[Callable] = []  # メッセージフック関数のリスト
     
     async def run_session(self, task: Optional[str] = None) -> str:
         """セッションを実行する"""
@@ -119,6 +120,13 @@ class SessionManager:
                             await self.cosmosdb_manager.save_message_realtime(chat_context)
                         except Exception as db_error:
                             self.logger.warning(f"Failed to save message to CosmosDB: {db_error}")
+                    
+                    # メッセージフックを実行
+                    for hook in self.message_hooks:
+                        try:
+                            hook(chat_context)
+                        except Exception as hook_error:
+                            self.logger.warning(f"Message hook failed: {hook_error}")
     
     def get_session_stats(self) -> Dict[str, Any]:
         """セッション統計を取得する"""
@@ -154,6 +162,19 @@ class SessionManager:
         self.chat_contexts.clear()
         self.session_start_time = None
         self.team_manager.reset_team()
+    
+    def add_message_hook(self, hook: Callable[[Dict[str, Any]], None]):
+        """メッセージフック関数を追加"""
+        self.message_hooks.append(hook)
+    
+    def remove_message_hook(self, hook: Callable[[Dict[str, Any]], None]):
+        """メッセージフック関数を削除"""
+        if hook in self.message_hooks:
+            self.message_hooks.remove(hook)
+    
+    def clear_message_hooks(self):
+        """全てのメッセージフックをクリア"""
+        self.message_hooks.clear()
     
     async def health_check(self) -> bool:
         """システムの健全性をチェックする"""

@@ -92,18 +92,39 @@ cp .env.example .env
 ### 実行
 
 ```bash
-# ブレインストーミング実行
-python src/main.py
-
-# チャット可視化（別ターミナル）
+# Streamlit統合ダッシュボード起動（推奨）
 run_chat_viewer.bat  # Windows
 ./run_chat_viewer.sh  # Linux/Mac
 # http://localhost:8501 でアクセス
+
+# コマンドライン実行（従来方式）
+python src/main.py
 ```
 
 ## 📖 使い方
 
-### 1. ブレインストーミング実行
+### 1. Streamlit統合ダッシュボード（推奨）
+
+```bash
+# ダッシュボード起動
+run_chat_viewer.bat  # Windows
+./run_chat_viewer.sh  # Linux/Mac
+
+# ブラウザで http://localhost:8501 にアクセス
+```
+
+#### 🧠 ライブブレインストーミング
+1. **タスク入力**: 検討したいアイデア・課題を入力
+2. **システムチェック**: Azure OpenAI接続確認
+3. **実行開始**: 🚀ボタンでブレインストーミング開始
+4. **リアルタイム表示**: AIエージェントの会話をライブ監視
+
+#### 📋 セッション一覧
+- **過去履歴**: 過去のブレインストーミング結果を確認
+- **ステータス**: 🟡実行中 / 🟢完了 / 🔴失敗
+- **詳細表示**: セッション選択で詳細チャット表示
+
+### 2. コマンドライン実行（従来方式）
 
 ```bash
 # インタラクティブモード
@@ -120,26 +141,11 @@ python scripts/run_production.py   # 本番環境
 python src/main.py --health-check
 ```
 
-### 2. チャット可視化
+### 3. データ管理
 
-Streamlitダッシュボードでリアルタイムチャット表示：
-
-```bash
-# ダッシュボード起動
-run_chat_viewer.bat  # Windows
-./run_chat_viewer.sh  # Linux/Mac
-
-# 手動起動
-python scripts/run_streamlit.py
-```
-
-ブラウザで `http://localhost:8501` にアクセス
-
-### 3. セッション管理
-
-- **セッション一覧**: 過去のブレインストーミング履歴を確認
-- **リアルタイム表示**: 実行中セッションの進行状況を監視  
-- **チャット再現**: 全ての会話を時系列で再生
+- **リアルタイム保存**: CosmosDBへの即座保存（オプション）
+- **ローカル保存**: JSONファイルへの自動保存
+- **履歴検索**: 過去セッションの検索・参照
 
 ## 設定
 

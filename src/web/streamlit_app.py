@@ -8,11 +8,18 @@ from datetime import datetime
 from typing import Dict, Any, List
 import sys
 import os
+from dotenv import load_dotenv
+
+# 環境変数を読み込み
+load_dotenv()
 
 # プロジェクトルートをPythonパスに追加
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+project_root = os.path.join(os.path.dirname(__file__), '..', '..')
+sys.path.insert(0, project_root)
+sys.path.insert(0, os.path.join(project_root, 'src'))
 
-from src.web.cosmosdb_reader import CosmosDBReader
+from cosmosdb_reader import CosmosDBReader
+from autogen_runner import get_runner
 
 # Streamlit設定
 st.set_page_config(
@@ -25,17 +32,23 @@ st.set_page_config(
 def init_session_state():
     """セッション状態を初期化"""
     if 'current_page' not in st.session_state:
-        st.session_state.current_page = 'sessions'
+        st.session_state.current_page = 'live'
     if 'selected_session_id' not in st.session_state:
         st.session_state.selected_session_id = None
     if 'last_message_count' not in st.session_state:
         st.session_state.last_message_count = 0
     if 'auto_refresh' not in st.session_state:
-        st.session_state.auto_refresh = False
+        st.session_state.auto_refresh = True
     if 'last_update_time' not in st.session_state:
         st.session_state.last_update_time = 0
     if 'refresh_interval' not in st.session_state:
         st.session_state.refresh_interval = 10  # デフォルト10秒
+    if 'live_messages' not in st.session_state:
+        st.session_state.live_messages = []
+    if 'current_task' not in st.session_state:
+        st.session_state.current_task = ""
+    if 'session_running' not in st.session_state:
+        st.session_state.session_running = False
 
 def format_status(status: str) -> str:
     """ステータスを日本語で表示"""
@@ -236,6 +249,164 @@ def show_chat_page(db_reader: CosmosDBReader):
         time.sleep(5)
         st.rerun()
 
+def show_live_brainstorming_page():
+    """ライブブレインストーミングページを表示"""
+    st.title("🧠 ライブブレインストーミング")
+    
+    # AutoGenランナーを取得
+    runner = get_runner()
+    
+    # 設定チェック
+    if runner.settings is None:
+        st.error("⚠️ 環境変数が設定されていません")
+        st.info("`.env`ファイルを作成して、以下の環境変数を設定してください：")
+        st.code("""
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_API_KEY=your-api-key-here
+AOAI_DEPLOYMENT_CHAT=your-chat-deployment-name
+AOAI_DEPLOYMENT_REASONING=your-reasoning-deployment-name
+        """)
+        st.info("設定方法の詳細は [SETUP.md](SETUP.md) を参照してください。")
+        return
+    
+    # ヘルスチェック状態を表示
+    health_container = st.container()
+    
+    # タスク入力セクション
+    st.subheader("🎯 ブレインストーミングタスク")
+    
+    # セッションが実行中でない場合のみタスク入力を表示
+    if not st.session_state.session_running:
+        task_input = st.text_area(
+            "検討したいアイデア・課題を入力してください：",
+            value=st.session_state.current_task,
+            height=100,
+            placeholder="例: 新しいフィットネスアプリのアイデア検討\n例: ECサイトのユーザー体験向上策\n例: AIを活用した教育サービス企画"
+        )
+        
+        col1, col2, col3 = st.columns([1, 1, 2])
+        
+        with col1:
+            if st.button("🚀 ブレインストーミング開始", type="primary", disabled=not task_input.strip()):
+                if task_input.strip():
+                    st.session_state.current_task = task_input.strip()
+                    st.session_state.session_running = True
+                    st.session_state.live_messages = []
+                    
+                    # セッション開始
+                    try:
+                        session_id = runner.start_session_async(
+                            task_input.strip(),
+                            callback=lambda event: _handle_session_event(event)
+                        )
+                        st.session_state.selected_session_id = session_id
+                        st.success(f"セッション開始: {session_id}")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"セッション開始エラー: {e}")
+        
+        with col2:
+            # ヘルスチェックボタン
+            if st.button("🔍 システムチェック"):
+                with st.spinner("システムをチェック中..."):
+                    # 非同期ヘルスチェックを同期的に実行
+                    import asyncio
+                    try:
+                        # 新しいイベントループを作成
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        is_healthy = loop.run_until_complete(runner.health_check())
+                        loop.close()
+                        
+                        if is_healthy:
+                            health_container.success("✅ システム正常")
+                        else:
+                            health_container.error("❌ システムエラー - 設定を確認してください")
+                    except Exception as e:
+                        health_container.error(f"❌ ヘルスチェックエラー: {e}")
+    
+    else:
+        # セッション実行中の表示
+        st.info(f"🏃‍♂️ 実行中のタスク: {st.session_state.current_task}")
+        
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("⏹️ セッション停止", type="secondary"):
+                runner.stop_session()
+                st.session_state.session_running = False
+                st.session_state.current_task = ""
+                st.rerun()
+    
+    # ライブチャット表示
+    st.subheader("💭 リアルタイム会話")
+    
+    # 新しいメッセージを取得
+    if st.session_state.session_running:
+        new_messages = runner.get_new_messages()
+        st.session_state.live_messages.extend(new_messages)
+        
+        # セッション状態を更新
+        if not runner.is_session_running():
+            st.session_state.session_running = False
+    
+    # チャットメッセージを表示
+    chat_container = st.container()
+    
+    if not st.session_state.live_messages:
+        with chat_container:
+            st.info("ブレインストーミングを開始すると、ここにAIエージェントの会話がリアルタイムで表示されます。")
+    else:
+        # エージェント別のアバター設定
+        agent_avatars = {
+            'creative_planner': '🎨',
+            'market_analyst': '📊',
+            'technical_validator': '⚙️',
+            'business_evaluator': '💼',
+            'user_advocate': '👥',
+            'system': '🤖'
+        }
+        
+        # エージェント名を日本語に変換
+        agent_names = {
+            'creative_planner': 'クリエイティブプランナー',
+            'market_analyst': 'マーケットアナリスト', 
+            'technical_validator': 'テクニカルバリデーター',
+            'business_evaluator': 'ビジネスエバリュエーター',
+            'user_advocate': 'ユーザー体験専門家',
+            'system': 'システム'
+        }
+        
+        with chat_container:
+            for message in st.session_state.live_messages:
+                msg_type = message.get('type', 'message')
+                
+                if msg_type == 'system':
+                    st.info(f"🤖 {message['content']}")
+                elif msg_type == 'error':
+                    st.error(f"❌ {message['content']}")
+                else:
+                    agent = message.get('source', 'unknown')
+                    content = message.get('content', '')
+                    timestamp = message.get('timestamp', '')
+                    
+                    agent_display = agent_names.get(agent, agent)
+                    avatar = agent_avatars.get(agent, '🤖')
+                    
+                    # チャットメッセージコンポーネントを使用
+                    with st.chat_message(agent, avatar=avatar):
+                        st.markdown(f"**{agent_display}** *({timestamp[:19]})*")
+                        st.markdown(content)
+    
+    # 実行中の場合は自動更新
+    if st.session_state.session_running:
+        time.sleep(2)  # 2秒間隔で更新
+        st.rerun()
+
+def _handle_session_event(event: str):
+    """セッションイベントハンドラー"""
+    if event == 'session_completed':
+        st.session_state.session_running = False
+
 def main():
     """メイン関数"""
     init_session_state()
@@ -254,6 +425,10 @@ def main():
         st.markdown("---")
         
         # ページ選択
+        if st.button("🧠 ライブブレインストーミング", use_container_width=True):
+            st.session_state.current_page = 'live'
+            st.rerun()
+        
         if st.button("📋 セッション一覧", use_container_width=True):
             st.session_state.current_page = 'sessions'
             st.rerun()
@@ -264,10 +439,12 @@ def main():
                 st.rerun()
         
         st.markdown("---")
-        st.caption("AI Brainstorming Chat Viewer v1.0")
+        st.caption("AI Brainstorming System v2.0")
     
     # メインページ表示
-    if st.session_state.current_page == 'sessions':
+    if st.session_state.current_page == 'live':
+        show_live_brainstorming_page()
+    elif st.session_state.current_page == 'sessions':
         show_sessions_page(db_reader)
     elif st.session_state.current_page == 'chat':
         show_chat_page(db_reader)
