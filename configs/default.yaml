@@ -1,0 +1,33 @@
+# Default Configuration
+# デフォルト設定ファイル
+
+# Azure OpenAI設定
+azure:
+  api_version: "2025-04-01-preview"
+  max_tokens:
+    chat: 500
+    reasoning: 2000
+
+# 会話設定
+conversation:
+  max_messages: 20
+  reflection_agent_max_count: 3
+  allow_repeated_speaker: false
+
+# ログ設定
+logging:
+  directory: "logs"
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  suppress_autogen_details: true  # AutoGenの詳細ログを抑制
+
+# エージェント設定
+agents:
+  response_max_length: 300
+  language: "ja"
+
+# CosmosDB設定
+cosmosdb:
+  enabled: false
+  database_name: "ai_brainstorming"
+  container_name: "chat_sessions"

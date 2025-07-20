@@ -1,0 +1,22 @@
+# Development Configuration
+# 開発環境設定ファイル
+
+# 基本設定を継承
+_base_: default.yaml
+
+# 開発環境固有の設定
+conversation:
+  max_messages: 50  # 開発時は短めに
+  reflection_agent_max_count: 2
+
+# ログ設定
+logging:
+  level: "DEBUG"
+  directory: "logs/dev"
+  suppress_autogen_details: false  # 開発時は詳細ログを表示
+
+# デバッグ設定
+debug:
+  enabled: true
+  verbose_output: true
+  save_intermediate_results: true
