@@ -209,6 +209,27 @@ isort src/
 mypy src/
 ```
 
+## 🛠️ 今後の拡張計画
+
+### Azure Functions化
+- [ ] **AutoGen API化**: AutoGenセッションをAzure Functionsで実行
+- [ ] **Queue Trigger実装**: Azure Service Bus QueueまたはAzure Storage Queueでの非同期処理
+- [ ] **RESTful API**: セッション作成・管理のためのREST API
+- [ ] **認証・認可**: Azure AD認証とAPIキー管理
+
+### ViewツールのQueue対応
+- [ ] **Queue登録機能**: StreamlitからQueue経由でセッション開始
+- [ ] **非同期監視**: Queue状態とセッション進行状況の監視
+- [ ] **WebHook対応**: セッション完了通知の受信
+- [ ] **リアルタイム通信**: SignalRによるライブ更新
+
+### ViewツールのNextjs化
+- [ ] **Next.jsフロントエンド**: Reactベースのフロントエンド開発
+- [ ] **API連携**: Azure QueueとCosmosDBとの連携
+- [ ] **状態管理**: ReduxまたはContext APIによる状態管理
+- [ ] **SSR対応**: Next.jsのサーバーサイドレンダリング機能を活用
+- [ ] **UIコンポーネントライブラリ**: Material-UIやTailwind CSSを使用したスタイリング
+
 ## ライセンス
 
 MIT License
