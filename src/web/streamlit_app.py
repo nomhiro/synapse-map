@@ -83,10 +83,17 @@ def show_sessions_page(db_reader: CosmosDBReader):
         st.info("`.env`ファイルでCOSMOSDB_ENABLED=trueに設定し、接続情報を確認してください。")
         return
     
-    # リフレッシュボタン
-    col1, col2 = st.columns([1, 4])
+    # リフレッシュとクリアボタン
+    col1, col2, col3 = st.columns([1, 1, 3])
     with col1:
         if st.button("🔄 更新", key="refresh_sessions"):
+            st.rerun()
+    
+    with col2:
+        if st.button("🧹 画面クリア", key="clear_sessions_display", help="セッション一覧表示をクリアして再読み込みします"):
+            # セッション状態をリセットしてから再読み込み
+            if 'sessions_display_cleared' not in st.session_state:
+                st.session_state.sessions_display_cleared = True
             st.rerun()
     
     # セッション一覧を取得
@@ -130,12 +137,22 @@ def show_sessions_page(db_reader: CosmosDBReader):
 
 def show_chat_page(db_reader: CosmosDBReader):
     """チャット表示ページを表示"""
+    # ページが変更された際にコンテンツをクリア
+    if 'page_changed' not in st.session_state:
+        st.session_state.page_changed = False
+    
+    if st.session_state.current_page == 'chat' and not st.session_state.page_changed:
+        st.session_state.page_changed = True
+        # 前のページの内容をクリアするために再実行
+        st.rerun()
+    
     session_id = st.session_state.selected_session_id
     
     if not session_id:
         st.error("セッションが選択されていません。")
         if st.button("⬅️ セッション一覧に戻る"):
             st.session_state.current_page = 'sessions'
+            st.session_state.page_changed = False
             st.rerun()
         return
     
@@ -145,6 +162,7 @@ def show_chat_page(db_reader: CosmosDBReader):
         st.error("セッション情報が見つかりません。")
         if st.button("⬅️ セッション一覧に戻る"):
             st.session_state.current_page = 'sessions'
+            st.session_state.page_changed = False
             st.rerun()
         return
     
@@ -153,6 +171,7 @@ def show_chat_page(db_reader: CosmosDBReader):
     with col1:
         if st.button("⬅️ 戻る", key="back_to_sessions"):
             st.session_state.current_page = 'sessions'
+            st.session_state.page_changed = False
             st.rerun()
     
     with col2:
@@ -161,7 +180,13 @@ def show_chat_page(db_reader: CosmosDBReader):
     with col3:
         # 実行中セッションの場合は自動リフレッシュオプション
         if session_detail['status'] == 'running':
-            st.session_state.auto_refresh = st.checkbox("🔄 自動更新", value=st.session_state.auto_refresh)
+            col3_1, col3_2 = st.columns([1, 1])
+            with col3_1:
+                st.session_state.auto_refresh = st.checkbox("🔄 自動更新", value=st.session_state.auto_refresh)
+            with col3_2:
+                if st.button("🧹 表示クリア", key="clear_chat_display", help="チャット表示をクリアして再読み込みします"):
+                    chat_container.empty()
+                    st.rerun()
     
     # セッション情報
     with st.expander("📊 セッション情報", expanded=False):
@@ -397,10 +422,36 @@ AOAI_DEPLOYMENT_REASONING=your-reasoning-deployment-name
                         st.markdown(f"**{agent_display}** *({timestamp[:19]})*")
                         st.markdown(content)
     
-    # 実行中の場合は自動更新
+    # オンデマンド更新コントロール
     if st.session_state.session_running:
-        time.sleep(2)  # 2秒間隔で更新
-        st.rerun()
+        # 自動更新か手動更新かの選択
+        col1, col2, col3 = st.columns([1, 1, 2])
+        
+        with col1:
+            auto_refresh = st.checkbox("🔄 自動更新", value=True, key="live_auto_refresh")
+        
+        with col2:
+            if st.button("🧹 画面クリア", help="チャット表示をクリアします"):
+                st.session_state.live_messages = []
+                st.rerun()
+        
+        # 自動更新の場合
+        if auto_refresh:
+            time.sleep(2)  # 2秒間隔で更新
+            st.rerun()
+        else:
+            # 手動更新ボタン
+            with col3:
+                if st.button("🔄 手動更新", help="新しいメッセージを取得します"):
+                    st.rerun()
+    else:
+        # セッション停止時のクリアボタン
+        if st.session_state.live_messages:
+            col1, col2 = st.columns([1, 4])
+            with col1:
+                if st.button("🧹 履歴クリア", help="チャット履歴をクリアします"):
+                    st.session_state.live_messages = []
+                    st.rerun()
 
 def _handle_session_event(event: str):
     """セッションイベントハンドラー"""
@@ -427,16 +478,49 @@ def main():
         # ページ選択
         if st.button("🧠 ライブブレインストーミング", use_container_width=True):
             st.session_state.current_page = 'live'
+            st.session_state.page_changed = False
             st.rerun()
         
         if st.button("📋 セッション一覧", use_container_width=True):
             st.session_state.current_page = 'sessions'
+            st.session_state.page_changed = False
             st.rerun()
         
         if st.session_state.selected_session_id:
             if st.button("💬 チャット表示", use_container_width=True):
                 st.session_state.current_page = 'chat'
+                st.session_state.page_changed = False
                 st.rerun()
+        
+        st.markdown("---")
+        
+        # グローバル操作
+        st.subheader("🛠️ 操作")
+        
+        if st.button("🧹 全画面クリア", use_container_width=True, help="現在の画面表示を完全にクリアします"):
+            # 主要なセッション状態をクリア
+            keys_to_clear = [
+                'live_messages', 'page_changed', 'sessions_display_cleared',
+                'last_message_count', 'last_update_time'
+            ]
+            for key in keys_to_clear:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+        
+        if st.button("🔄 システム再起動", use_container_width=True, help="アプリケーション状態を完全にリセットします"):
+            # 全セッション状態をクリア（選択されたセッション以外）
+            preserve_keys = ['selected_session_id', 'current_page']
+            preserved = {k: st.session_state.get(k) for k in preserve_keys if k in st.session_state}
+            
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            
+            # 必要な状態のみ復元
+            for k, v in preserved.items():
+                st.session_state[k] = v
+            
+            st.rerun()
         
         st.markdown("---")
         st.caption("AI Brainstorming System v2.0")

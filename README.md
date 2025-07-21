@@ -40,11 +40,17 @@ AutoGenを使用した多エージェントAIブレインストーミングシ�
 ```
 ├── src/
 │   ├── agents/          # エージェント定義
-│   ├── config/          # 設定管理
 │   ├── core/            # 核となるビジネスロジック
+│   │   ├── session_manager.py    # セッション管理
+│   │   ├── cosmosdb_manager.py   # CosmosDB連携
+│   │   └── settings.py           # 設定管理
+│   ├── web/             # Webアプリケーション
+│   │   ├── streamlit_app.py      # Streamlitメインアプリ
+│   │   ├── autogen_runner.py     # AutoGen統合アダプター
+│   │   └── cosmosdb_reader.py    # データ読み取り
 │   ├── utils/           # 共通ユーティリティ
-│   └── main.py          # メインエントリポイント
-├── configs/             # 設定ファイル
+│   └── main.py          # コマンドライン実行
+├── blog/                # 技術ブログ記事
 ├── scripts/             # 実行スクリプト
 ├── tests/               # テストファイル
 ├── logs/                # ログファイル
@@ -93,6 +99,8 @@ cp .env.example .env
 
 ```bash
 # Streamlit統合ダッシュボード起動（推奨）
+streamlit run src/web/streamlit_app.py
+# または
 run_chat_viewer.bat  # Windows
 ./run_chat_viewer.sh  # Linux/Mac
 # http://localhost:8501 でアクセス
@@ -107,6 +115,8 @@ python src/main.py
 
 ```bash
 # ダッシュボード起動
+streamlit run src/web/streamlit_app.py
+# または
 run_chat_viewer.bat  # Windows
 ./run_chat_viewer.sh  # Linux/Mac
 
@@ -118,11 +128,22 @@ run_chat_viewer.bat  # Windows
 2. **システムチェック**: Azure OpenAI接続確認
 3. **実行開始**: 🚀ボタンでブレインストーミング開始
 4. **リアルタイム表示**: AIエージェントの会話をライブ監視
+5. **表示制御**: 🧹画面クリア、🔄自動/手動更新の切り替え
 
 #### 📋 セッション一覧
 - **過去履歴**: 過去のブレインストーミング結果を確認
 - **ステータス**: 🟡実行中 / 🟢完了 / 🔴失敗
 - **詳細表示**: セッション選択で詳細チャット表示
+- **表示管理**: 🧹画面クリア、🔄更新機能
+
+#### 💬 チャット履歴
+- **詳細表示**: 選択したセッションの会話を時系列表示
+- **リアルタイム更新**: 実行中セッションの自動更新
+- **表示クリア**: 🧹ボタンで表示をクリア
+
+#### 🛠️ グローバル操作（サイドバー）
+- **🧹 全画面クリア**: 現在の画面表示を完全にクリア
+- **🔄 システム再起動**: アプリケーション状態を完全にリセット
 
 ### 2. コマンドライン実行（従来方式）
 
@@ -151,16 +172,21 @@ python src/main.py --health-check
 
 ### 環境変数
 
-- `AOAI_DEPLOYMENT_CHAT`: Azure OpenAI チャット用デプロイメント名
-- `AOAI_DEPLOYMENT_REASONING`: Azure OpenAI 推論用デプロイメント名
 - `AZURE_OPENAI_ENDPOINT`: Azure OpenAI エンドポイント
 - `AZURE_OPENAI_API_KEY`: Azure OpenAI API キー
+- `AOAI_DEPLOYMENT_CHAT`: Azure OpenAI チャット用デプロイメント名
+- `AOAI_DEPLOYMENT_REASONING`: Azure OpenAI 推論用デプロイメント名
+- `AZURE_API_VERSION`: Azure OpenAI API バージョン（デフォルト: 2025-04-01-preview）
+- `COSMOSDB_ENABLED`: CosmosDB使用フラグ（デフォルト: false）
+- `COSMOSDB_ENDPOINT`: CosmosDB エンドポイント（オプション）
+- `COSMOSDB_KEY`: CosmosDB アクセスキー（オプション）
+- `COSMOSDB_DATABASE_NAME`: CosmosDB データベース名（デフォルト: ai_brainstorming）
+- `COSMOSDB_CONTAINER_NAME`: CosmosDB コンテナー名（デフォルト: chat_sessions）
 
 ### 設定ファイル
 
-- `configs/default.yaml`: デフォルト設定
-- `configs/development.yaml`: 開発環境設定
-- `configs/production.yaml`: 本番環境設定
+- `.env`: 環境変数設定ファイル
+- `.env.example`: 環境変数設定のテンプレート
 
 ## エージェント
 
@@ -184,9 +210,10 @@ python src/main.py --health-check
 - ユーザビリティの評価
 - 顧客満足度の分析
 
-### 6. Reflection Agent (リフレクション)
-- 会話の振り返り
-- 新しいトピックの提案
+### SelectorGroupChat による協調動作
+- **Selector Agent**: 司会役として次に発言するエージェントを動的に選択
+- **終了条件**: 各エージェントが規定回数発言した時点で自動終了
+- **議論の流れ**: 自然な会話の流れを重視した進行管理
 
 ## 開発
 
