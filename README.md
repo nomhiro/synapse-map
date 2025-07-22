@@ -8,6 +8,7 @@
 > 🤖 **Multi-Agent AI Brainstorming System with Real-time Chat Visualization**
 
 AutoGenを使用した多エージェントAIブレインストーミングシステム。製品開発・サービス企画のアイデア出しを5つの専門AIエージェントが協力して行い、リアルタイムでCosmosDBに保存、Streamlitで可視化できます。
+https://youtu.be/riaKDAVPWmk
 
 ## ✨ 特徴
 
